@@ -1,0 +1,95 @@
+#!/bin/bash
+# Anas Mansouri
+# tcpdump - Startup script for tcpdump
+# chkconfig: 345 2 98
+# description: tcpdump is a command-line packet analyzer
+# processname: tcpdump
+# pidfile: /var/run/tcpdump/tcpdump.pid
+
+. /etc/rc.d/init.d/functions
+# no need to run this if tcpdump is missing.
+[ -x "/usr/sbin/tcpdump" ] || exit 0
+
+PROG="tcpdump"
+TCPDUMP_FORMAT="%Y-%m-%d-%H:%M"
+TCPDUMP_USER="tcpdump"
+TCPDUMP_GROUP="tcpdump"
+TCPDUMP_DIR=/files2/tcpdump
+TCPDUMP_LOG_DIR=/files2/tcpdump/log
+CMD="/usr/sbin/tcpdump -i any -G 3600 -s 60000 -w $TCPDUMP_LOG_DIR/tcpdump.log.$TCPDUMP_FORMAT.pcap -z gzip"
+PID_DIR=/var/run/tcpdump
+PID_FILE=/var/run/tcpdump/tcpdump.pid
+LOCK_FILE=/var/lock/subsys/tcpdump
+TCPDUMP_PID="$(ps aux | grep -v grep | grep "$CMD" | awk 'NR==1{print $2}')"
+RETVAL=0
+
+start() {
+    if ([ -n "$TCPDUMP_DIR" ] && [ ! -e "$TCPDUMP_DIR" ]) || ([ -n "$TCPDUMP_LOG_DIR" ] && [ ! -e "$TCPDUMP_LOG_DIR" ]) ; then
+        mkdir -p "$TCPDUMP_LOG_DIR" && chown -R "$TCPDUMP_USER":"$TCPDUMP_GROUP" "$TCPDUMP_DIR"
+    fi
+    if [ -n "$PID_DIR" ] && [ ! -e "$PID_DIR" ]; then
+        mkdir -p "$PID_DIR" && chown "$TCPDUMP_USER":"$TCPDUMP_GROUP" "$PID_DIR"
+    fi
+    if [ -n "$PID_FILE" ] && [ ! -e "$PID_FILE" ]; then
+        touch "$PID_FILE" && chown "$TCPDUMP_USER":"$TCPDUMP_GROUP" "$PID_FILE"
+    fi
+    echo -n $"Starting supervisord: "
+    if [ -z "$TCPDUMP_PID" ]; then
+        $CMD > /dev/null 2>&1 &
+        RETVAL=$?
+        PID=$!
+        echo $PID > $PID_FILE
+        echo
+        [ $RETVAL -eq 0 ] && touch $LOCK_FILE
+    fi
+    return $RETVAL
+}
+
+stop() {
+    echo -n $"Stopping tcpdump: "
+    killproc -p $PID_FILE $PROG
+    RETVAL=$?
+    echo
+    [ $RETVAL -eq 0 ] && rm -f $LOCK_FILE
+    return $RETVAL
+}
+
+restart() {
+    stop
+    start
+}
+
+status() {
+    if [ -z "$TCPDUMP_PID" ]; then
+      echo "$PROG is not running"
+      RETVAL=3
+    else
+      echo "$PROG (pid  $TCPDUMP_PID) is running"
+      RETVAL=0
+    fi
+    return $RETVAL
+}
+
+case "$1" in
+    start)
+        start
+        RETVAL=$?
+        ;;
+    stop)
+        stop
+        RETVAL=$?
+        ;;
+    restart|reload|force-reload)
+        restart
+        RETVAL=$?
+        ;;
+    status)
+        status
+        RETVAL=$?
+        ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|force-reload}"
+        exit 1
+esac
+
+exit $RETVAL
