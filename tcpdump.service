@@ -1,0 +1,20 @@
+[Unit]
+Description=tcpdump packet analyzer
+Documentation=https://www.tcpdump.org/manpages/tcpdump.1.html
+After=network.target
+
+[Service]
+Type=simple
+Environment="TCPDUMP_FORMAT=%%Y-%%m-%%d-%%H:%%M"
+Environment="TCPDUMP_PATH=/files2/tcpdump"
+Environment="TCPDUMP_PATH_LOG=/files2/tcpdump/log"
+Environment="TCPDUMP_USER=tcpdump"
+Environment="TCPDUMP_GROUP=tcpdump"
+ExecStartPre=/usr/bin/mkdir -p ${TCPDUMP_PATH_LOG}
+ExecStartPre=/usr/bin/chown -R ${TCPDUMP_USER}:${TCPDUMP_GROUP} ${TCPDUMP_PATH}
+ExecStart=/usr/sbin/tcpdump -i any -G 3600 -n -S -s 60000 -w '${TCPDUMP_PATH_LOG}/tcpdump.log.${TCPDUMP_FORMAT}.pcap' -z pigz
+ExecStop=/usr/bin/kill -s QUIT $MAINPID
+KillMode=process
+
+[Install]
+WantedBy=multi-user.target
